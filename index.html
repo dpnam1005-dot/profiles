@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cute Profile Card</title>
+    <!-- Nhúng Font chữ dễ thương từ Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Montserrat:wght@600;700&family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* === BIẾN MÀU SẮC (CSS Variables) === */
+        :root {
+            --bg-color: #fff0f5; /* LavenderBlush */
+            --card-bg: rgba(255, 255, 255, 0.85);
+            --primary-pink: #ff8da1;
+            --text-dark: #5a3d46;
+            --text-light: #8a6c75;
+            --shadow: 0 15px 35px rgba(255, 141, 161, 0.2);
+        }
+
+        /* === RESET & LAYOUT CƠ BẢN === */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden; /* Ẩn thanh cuộn do canvas */
+        }
+
+        /* === CANVAS BACKGROUND === */
+        #sakura-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none; /* Xuyên thao tác chuột qua canvas */
+            /* Ép GPU xử lý để chống giật khi canvas vẽ liên tục */
+            transform: translate3d(0, 0, 0);
+            -webkit-transform: translate3d(0, 0, 0);
+            will-change: transform;
+        }
+
+        #hhw-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2; /* Nằm trên lớp sakura, dưới thẻ profile */
+            pointer-events: none;
+        }
+
+        .hhw-heart {
+            position: absolute;
+            font-size: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* === MAIN CARD STYLING === */
+        .profile-card {
+            position: relative;
+            z-index: 1; /* Nằm trên canvas */
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            width: 90%; /* Cải thiện cho thiết bị di động */
+            max-width: 460px; /* Giới hạn chiều rộng tối đa */
+            border-radius: 30px;
+            padding: 60px 40px; 
+            box-shadow: var(--shadow);
+            text-align: center;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            
+            /* --- BẮT ĐẦU FIX LỖI GIẬT TRONG IFRAME --- */
+            /* Ép thẻ Card xử lý trong một layer 3D riêng biệt, giảm tải cho CPU */
+            transform: translate3d(0, 0, 0);
+            -webkit-transform: translate3d(0, 0, 0);
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            will-change: transform, backdrop-filter;
+            /* --- KẾT THÚC FIX LỖI --- */
+
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .profile-card:hover {
+            transform: translate3d(0, -5px, 0);
+            -webkit-transform: translate3d(0, -5px, 0);
+            box-shadow: 0 20px 40px rgba(255, 141, 161, 0.3);
+        }
+
+        /* === AVATAR SECTION === */
+        .avatar-container {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 20px;
+            cursor: pointer; /* Bật lại con trỏ để click có hiệu ứng */
+            border-radius: 50%;
+            box-shadow: 0 8px 20px rgba(255, 141, 161, 0.4);
+            transition: transform 0.2s;
+            background: white;
+            padding: 4px;
+            /* Đảm bảo căn giữa tuyệt đối */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .avatar-container:hover {
+            transform: scale(1.05);
+        }
+
+        .avatar-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            /* Chỉnh số 10% (trái/phải) và 30% (lên/xuống) để dời vị trí ảnh. 
+               Số % thứ 2 càng nhỏ (tiến về 0%) thì ảnh càng dịch xuống dưới */
+            object-position: 10% 30%; 
+            border-radius: 50%;
+            display: block; /* Tránh khoảng trắng thừa ở dưới đáy ảnh */
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Badges bay quanh avatar */
+        .badge {
+            position: absolute;
+            background: white;
+            color: var(--primary-pink);
+            font-size: 10px;
+            font-weight: 700;
+            padding: 5px 10px;
+            border-radius: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            border: 1px solid #ffe4e1;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .badge-1 { top: -10px; right: -20px; animation: float 3s ease-in-out infinite; }
+        .badge-2 { bottom: 10px; left: -30px; animation: float 3s ease-in-out infinite reverse; }
+        .badge-4 { bottom: -5px; right: -15px; animation: float 3.2s ease-in-out infinite; }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+            100% { transform: translateY(0px); }
+        }
+
+        /* === TEXT INPUTS TÙY CHỈNH === */
+        input[type="text"], textarea {
+            width: 100%;
+            border: none;
+            background: transparent;
+            text-align: center;
+            color: var(--text-dark);
+            outline: none;
+            resize: none;
+            transition: background 0.3s;
+            border-radius: 8px;
+        }
+
+        input[type="text"]:focus, textarea:focus {
+            background: rgba(255, 141, 161, 0.05);
+        }
+
+        .user-name {
+            font-family: 'Montserrat', sans-serif; /* Đã thêm font Montserrat */
+            font-size: 24px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .user-role {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--primary-pink);
+            border: 1px solid var(--primary-pink);
+            padding: 4px 12px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .user-quote {
+            font-family: 'Dancing Script', cursive;
+            font-size: 22px;
+            color: var(--primary-pink);
+            line-height: 1.4;
+            margin-bottom: 20px;
+            height: 70px;
+            overflow: hidden;
+        }
+
+        /* === SOCIAL LINKS === */
+        .social-links {
+            display: flex;
+            justify-content: center;
+            gap: 18px;
+            margin-bottom: 25px;
+        }
+
+        .social-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: rgba(255, 141, 161, 0.1);
+            color: var(--primary-pink);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .social-icon:hover {
+            background: var(--primary-pink);
+            color: white;
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(255, 141, 161, 0.4);
+        }
+
+        .social-icon svg {
+            width: 22px;
+            height: 22px;
+            fill: currentColor;
+        }
+
+        /* Đổi màu trái tim của locket khi hover */
+        .social-icon:hover .locket-heart {
+            fill: var(--primary-pink);
+        }
+
+        .toast {
+            position: absolute;
+            bottom: -50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #4caf50;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            z-index: 9999;
+            width: 90%;
+            text-align: center;
+        }
+        .toast.show {
+            bottom: 20px;
+            opacity: 1;
+        }
+
+        /* === MODAL PORTFOLIO (KHUNG BẬT LÊN) === */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .modal-overlay.show {
+            opacity: 1;
+        }
+        .modal-content {
+            position: relative;
+            max-width: 90%;
+            max-height: 90%;
+            background: #fff0f5;
+            padding: 15px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+            animation: popUp 0.3s ease;
+        }
+        .modal-content img {
+            max-width: 100%;
+            max-height: 75vh;
+            border-radius: 10px;
+            display: block;
+        }
+        .close-modal {
+            position: absolute;
+            top: -15px;
+            right: -15px;
+            background: var(--primary-pink);
+            color: white;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        .close-modal:hover {
+            transform: scale(1.1);
+        }
+        @keyframes popUp {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="sakura-canvas"></canvas>
+    <canvas id="hhw-canvas"></canvas>
+
+    <div class="profile-card">
+        
+        <div class="avatar-container" id="avatar-container">
+            <img id="avatar-img" alt="Avatar" src="https://scontent.fsgn5-13.fna.fbcdn.net/v/t39.30808-6/617499032_3360069024160148_3914009065411955902_n.jpg?stp=dst-jpg_tt6&cstp=mx1536x2048&ctp=s1536x2048&_nc_cat=100&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=833d8c&_nc_ohc=FMAUvbZ1qRIQ7kNvwHbyIJT&_nc_oc=AdrfMymYr8CxKTLcwKTeKTZVvhCnlyjmJUZkg23f7Stk_sMJBpYQdDq0nXRf_wdGHXLBbB4DFViCAhU017zsyUde&_nc_zt=23&_nc_ht=scontent.fsgn5-13.fna&_nc_gid=Hlk4BhAcsoWLppdp1jMuYw&_nc_ss=7b2a8&oh=00_AQDQfAWHd2Y8UjC0xqwAL8XgkR--0mztJBuNbVOejAq87A&oe=6A518144">
+            
+            <div class="badge badge-1">Uống 2 lít nước chưa?</div>
+            <div class="badge badge-2">Thẳng lưng</div>
+            <div class="badge badge-4">Xin chào</div>
+        </div>
+
+        <input type="text" class="user-name" id="input-name" value="HIẾU HẠNH">
+        <div class="user-role">Cô nàng Ma Kết nổi loạn👑</div>
+        
+        <div class="social-links">
+            <!-- Facebook -->
+            <a href="https://www.facebook.com/hanhhieu.huyenlam" target="_blank" rel="noopener noreferrer" class="social-icon" title="Facebook">
+                <svg viewBox="0 0 320 512"><path d="M279.14 288l14.22-92.66h-88.91v-60.13c0-25.35 12.42-50.06 52.24-50.06h40.42V6.26S260.43 0 225.36 0c-73.22 0-121.08 44.38-121.08 124.72v70.62H22.89V288h81.39v224h100.17V288z"/></svg>
+            </a>
+            <!-- Instagram -->
+            <a href="https://www.instagram.com/daisy.socutee/" target="_blank" rel="noopener noreferrer" class="social-icon" title="Instagram">
+                <svg viewBox="0 0 448 512"><path d="M224.1 141c-63.6 0-114.9 51.3-114.9 114.9s51.3 114.9 114.9 114.9S339 319.5 339 255.9 287.7 141 224.1 141zm0 189.6c-41.1 0-74.7-33.5-74.7-74.7s33.5-74.7 74.7-74.7 74.7 33.5 74.7 74.7-33.6 74.7-74.7 74.7zm146.4-194.3c0 14.9-12 26.8-26.8 26.8-14.9 0-26.8-12-26.8-26.8s12-26.8 26.8-26.8 26.8 12 26.8 26.8zm76.1 27.2c-1.7-35.9-9.9-67.7-36.2-93.9-26.2-26.2-58-34.4-93.9-36.2-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.4 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2 26.2-26.2 34.4-58 36.2-93.9 2.1-37 2.1-147.8 0-184.8zM398.8 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z"/></svg>
+            </a>
+            <!-- Threads -->
+            <a href="https://www.threads.com/@daisy.socutee" target="_blank" rel="noopener noreferrer" class="social-icon" title="Threads">
+                <svg viewBox="0 0 448 512"><path d="M331.5 235.7c2.2 .9 4.2 1.9 6.3 2.8 29.2 14.1 50.6 35.2 61.8 61.4 15.7 36.5 17.2 95.8-30.3 143.2-36.2 36.2-86.6 52.7-142.6 53h-.3c-70.2-.5-124.1-24.1-160.4-70.2-32.3-41-48.9-98.1-49.5-169.6V256v-.2C17 184.3 33.6 127.2 65.9 86.2 102.2 40.1 156.2 16.5 226.4 16h.3c70.3 .5 124.9 24.5 162.3 71.4 32.7 41 49.2 98.4 49.2 169.9v17.5h-10v-17.5c0-68.5-15.6-123.4-46.5-162-34.9-43.7-85.9-66.2-151.7-66.6H227c-65.7 .4-116.7 23-151.6 66.6-30.9 38.6-46.5 93.5-46.5 162v.2c.6 68.5 16.2 123.3 47.1 161.9 34.9 43.8 85.9 66.2 151.7 66.6h.2c53.3-.3 101.4-15.8 135-49.4 43.1-43 41.3-95.2 28.5-125-9.2-21.4-26.6-38.6-50.6-50.2-6.5-3.1-13.4-5.9-20.7-8.1-23.7 15.8-49.2 24.4-78.6 24.4-36.1 0-66.7-12-88.3-34.5-22.3-23.1-34.2-56.4-34.2-96.1 0-38.8 11.2-71.1 32.3-93.5 20.2-21.4 48.6-33.1 79.7-33.1 32.6 0 61.2 11.9 81.3 33.7 20 21.7 31 53 31 88.5v30.7h-10V186.3c0-32.9-10-61.4-28-81-18.4-20-44.5-31-74.3-31-28.4 0-54 10.7-72.2 30-19.1 20.3-29.2 49.5-29.2 84.8 0 35.8 10.7 65.8 30.7 86.6 19.5 20.3 47.3 31 79.5 31 23 0 45.3-6.6 66-19zm-104.3-19.1c-19.3 0-37.1 5.9-52.5 17.5 14.8 18 35.2 27.5 59.8 27.5 31 0 54.4-11.4 71.9-35-18.7-27.1-46.7-42.5-77.9-42.5-20.6 0-38.6 5.8-51.5 16.5-6.5 5.4-12 11.9-16.1 19.5z"/></svg>
+            </a>
+            <!-- Locket -->
+            <a href="https://locket.cam/hieuhanhxinh" target="_blank" rel="noopener noreferrer" class="social-icon" title="Locket">
+                <svg viewBox="0 0 24 24">
+                    <rect x="2" y="2" width="20" height="20" rx="5" fill="currentColor" />
+                    <path class="locket-heart" d="M12 16.5l-0.9-0.82C7.94 12.53 6 10.78 6 8.6 6 6.82 7.4 5.4 9.15 5.4c1 0 1.96.47 2.85 1.2.89-.73 1.85-1.2 2.85-1.2C16.6 5.4 18 6.82 18 8.6c0 2.18-1.94 3.93-5.1 6.81L12 16.5z" fill="white" />
+                </svg>
+            </a>
+        </div>
+
+        <div class="toast" id="toast-msg">Đã cập nhật thành công! ✨</div>
+    </div>
+
+    <script>
+        const toastMsg = document.getElementById('toast-msg');
+
+        // Khôi phục dữ liệu văn bản từ Local Storage (nếu có)
+        function loadSavedDataLocal() {
+            const savedName = localStorage.getItem('cute_profile_name');
+            const savedQuote = localStorage.getItem('cute_profile_quote');
+
+            if (savedName) document.getElementById('input-name').value = savedName;
+            if (savedQuote) document.getElementById('input-quote').value = savedQuote;
+        }
+        
+        // Chạy hàm khôi phục khi trang tải
+        loadSavedDataLocal();
+
+        function showToast(msg, bgColor = "#4caf50") {
+            toastMsg.innerText = msg;
+            toastMsg.style.background = bgColor;
+            toastMsg.classList.add('show');
+            setTimeout(() => toastMsg.classList.remove('show'), 4000);
+        }
+
+        // === HIỆU ỨNG CANVAS HOA ANH ĐÀO ===
+        const canvas = document.getElementById('sakura-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height; let petals = []; const NUM_PETALS = 35; 
+
+        function resizeCanvas() {
+            width = window.innerWidth; height = window.innerHeight;
+            canvas.width = width; canvas.height = height;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Petal {
+            constructor() { this.reset(); }
+            reset() {
+                this.x = Math.random() * width; this.y = Math.random() * height - height;
+                this.size = Math.random() * 15 + 10; this.speedY = Math.random() * 1.5 + 0.5;
+                this.speedX = Math.random() * 2 - 1; this.angle = Math.random() * Math.PI * 2;
+                this.spin = (Math.random() - 0.5) * 0.05;
+            }
+            update() {
+                this.y += this.speedY; this.x += this.speedX + Math.sin(this.y * 0.01) * 0.5; 
+                this.angle += this.spin;
+                if (this.y > height + this.size) { this.reset(); this.y = -this.size; }
+            }
+            draw() {
+                ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
+                ctx.beginPath();
+                for (let i = 0; i < 5; i++) {
+                    ctx.rotate((Math.PI * 2) / 5); ctx.moveTo(0, 0);
+                    ctx.bezierCurveTo(this.size / 2, -this.size / 2, this.size, -this.size / 2, this.size, 0);
+                    ctx.bezierCurveTo(this.size, this.size / 2, this.size / 2, this.size / 2, 0, 0);
+                }
+                ctx.fillStyle = '#ffb7c5'; ctx.fill(); ctx.closePath(); ctx.restore();
+            }
+        }
+
+        for (let i = 0; i < NUM_PETALS; i++) petals.push(new Petal());
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            petals.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        // === HỆ THỐNG SCRIPT HIỆU ỨNG TIM & PHÁO HOA KHI CLICK AVATAR ===
+        (function() {
+            const replies = [
+                "Ui chạm nhẹ thui đằng ấy ơi, đang bận check hợp đồng nè! 🌸",
+                "Cảm ơn đằng ấy đã tương tác nhen! Chúc ngày ngọt ngào! 💕",
+                "Xinh gái vạn người mê đang tràn đầy năng lượng đây! 🔥",
+                "Trà sữa không? Tớ đang thèm một ly đây nè! 🥤"
+            ];
+
+            const box = document.querySelector('.profile-card');
+            const avatarBtn = document.getElementById('avatar-container');
+            
+            function showCuteToast(msg) {
+                // Tận dụng hàm showToast có sẵn nhưng đổi màu hồng đáng yêu
+                showToast(msg, "#ff8da1");
+            }
+
+            function createHeart(x, y) {
+                const heart = document.createElement('div');
+                heart.className = 'hhw-heart';
+                heart.innerText = ['❤️', '💖', '✨', '🌸', '💘'][Math.floor(Math.random() * 5)];
+                heart.style.left = `${x}px`;
+                heart.style.top = `${y}px`;
+                box.appendChild(heart);
+
+                // Tính toán hướng bay ngẫu nhiên tỏa ra khắp khung thẻ
+                const angle = Math.random() * Math.PI * 2; // Góc bay 360 độ
+                const distance = Math.random() * 250 + 80; // Độ xa lan tỏa từ 80px đến 330px
+                const tx = Math.cos(angle) * distance;
+                const ty = Math.sin(angle) * distance - 80; // Trừ đi một chút để tim có xu hướng bay lên nhiều hơn
+
+                const duration = 1000 + Math.random() * 800; // Thời gian bay từ 1s đến 1.8s
+
+                // Dùng Web Animations API để tạo hiệu ứng bung tỏa mượt mà
+                heart.animate([
+                    { transform: 'translate(-50%, -50%) scale(0.2)', opacity: 1 },
+                    { transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(${Math.random() * 1.5 + 1})`, opacity: 0 }
+                ], {
+                    duration: duration,
+                    easing: 'cubic-bezier(0.25, 1, 0.5, 1)', // Bung nhanh lúc đầu, bay chậm dần
+                    fill: 'forwards'
+                });
+
+                setTimeout(() => heart.remove(), duration);
+            }
+
+            // Click Avatar
+            if(avatarBtn) {
+                avatarBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const rect = avatarBtn.getBoundingClientRect();
+                    const boxRect = box.getBoundingClientRect();
+                    // Tính tọa độ tim thả bên trong Box
+                    const x = rect.left - boxRect.left + rect.width / 2;
+                    const y = rect.top - boxRect.top + rect.height / 2;
+
+                    // Tăng số lượng tim lên 35 trái để lan tỏa kín khung
+                    for (let i = 0; i < 35; i++) createHeart(x, y);
+                    
+                    // Tính tọa độ pháo hoa trên màn hình
+                    const canvasX = rect.left + rect.width / 2;
+                    const canvasY = rect.top + rect.height / 2;
+                    createExplosion(canvasX, canvasY);
+                    
+                    showCuteToast(replies[Math.floor(Math.random() * replies.length)]);
+                });
+            }
+
+            // Canvas Pháo hoa nhẹ nhàng
+            const hhwCanvas = document.getElementById('hhw-canvas');
+            if(!hhwCanvas) return;
+            const ctxHhw = hhwCanvas.getContext('2d');
+            let wHhw, hHhw; let hhwParticles = []; 
+            const colors = ['#ff4365', '#ff839b', '#f7d070', '#ff9ebb', '#ffffff'];
+
+            function resizeHhw() {
+                wHhw = hhwCanvas.offsetWidth || window.innerWidth; 
+                hHhw = hhwCanvas.offsetHeight || window.innerHeight;
+                hhwCanvas.width = wHhw; hhwCanvas.height = hHhw;
+            }
+            window.addEventListener('resize', resizeHhw);
+            
+            class HhwParticle {
+                constructor(x, y) {
+                    this.x = x; this.y = y; this.alpha = 1;
+                    this.angle = Math.random() * Math.PI * 2;
+                    this.speed = Math.random() * 4 + 1;
+                    this.color = colors[Math.floor(Math.random() * colors.length)];
+                }
+                update(i) {
+                    this.speed *= 0.95; this.x += Math.cos(this.angle) * this.speed;
+                    this.y += Math.sin(this.angle) * this.speed + 0.05; this.alpha -= 0.02;
+                    if (this.alpha <= 0) hhwParticles.splice(i, 1);
+                }
+                draw() {
+                    ctxHhw.globalAlpha = this.alpha; ctxHhw.fillStyle = this.color;
+                    ctxHhw.beginPath(); ctxHhw.arc(this.x, this.y, 2, 0, Math.PI * 2); ctxHhw.fill();
+                }
+            }
+
+            function createExplosion(x, y) {
+                for (let i = 0; i < 30; i++) hhwParticles.push(new HhwParticle(x, y));
+            }
+
+            function animateHhw() {
+                ctxHhw.clearRect(0, 0, wHhw, hHhw);
+                for (let i = hhwParticles.length - 1; i >= 0; i--) {
+                    hhwParticles[i].update(i);
+                    if(hhwParticles[i]) hhwParticles[i].draw();
+                }
+                requestAnimationFrame(animateHhw);
+            }
+
+            setTimeout(() => {
+                resizeHhw();
+                animateHhw();
+                // Bắn một đợt pháo hoa nhẹ lúc vừa tải xong để gây bất ngờ
+                createExplosion(wHhw/2, hHhw/3); 
+            }, 300);
+        })();
+    </script>
+</body>
+</html>
